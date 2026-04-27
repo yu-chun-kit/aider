@@ -58,6 +58,8 @@ posthog_host = "https://us.i.posthog.com"
 
 
 class Analytics:
+    # OFFLINE FORK: Analytics is permanently disabled to prevent external network requests.
+
     # providers
     mp = None
     ph = None
@@ -82,8 +84,8 @@ class Analytics:
         self.custom_posthog_host = posthog_host
         self.custom_posthog_project_api_key = posthog_project_api_key
 
-        if self.permanently_disable or permanently_disable or not self.asked_opt_in:
-            self.disable(permanently_disable)
+        # OFFLINE FORK: always disable external analytics regardless of args
+        self.disable(True)
 
     def enable(self):
         if not self.user_id:
@@ -211,16 +213,11 @@ class Analytics:
         self.ph = None
 
     def event(self, event_name, main_model=None, **kwargs):
-        if not self.mp and not self.ph and not self.logfile:
+        # OFFLINE FORK: skip external analytics but still log to file if requested
+        if not self.logfile:
             return
 
         properties = {}
-
-        if main_model:
-            properties["main_model"] = self._redact_model_name(main_model)
-            properties["weak_model"] = self._redact_model_name(main_model.weak_model)
-            properties["editor_model"] = self._redact_model_name(main_model.editor_model)
-
         properties.update(kwargs)
 
         # Handle numeric values
@@ -230,28 +227,18 @@ class Analytics:
             else:
                 properties[key] = str(value)
 
-        if self.mp:
-            try:
-                self.mp.track(self.user_id, event_name, dict(properties))
-            except MixpanelException:
-                self.mp = None  # Disable mixpanel on connection errors
-
-        if self.ph:
-            self.ph.capture(event_name, distinct_id=self.user_id, properties=dict(properties))
-
-        if self.logfile:
-            log_entry = {
-                "event": event_name,
-                "properties": properties,
-                "user_id": self.user_id,
-                "time": int(time.time()),
-            }
-            try:
-                with open(self.logfile, "a") as f:
-                    json.dump(log_entry, f)
-                    f.write("\n")
-            except OSError:
-                pass  # Ignore OS errors when writing to logfile
+        log_entry = {
+            "event": event_name,
+            "properties": properties,
+            "user_id": self.user_id,
+            "time": int(time.time()),
+        }
+        try:
+            with open(self.logfile, "a") as f:
+                json.dump(log_entry, f)
+                f.write("\n")
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

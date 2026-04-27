@@ -206,12 +206,9 @@ def check_gitignore(git_root, io, ask=True):
 
 
 def check_streamlit_install(io):
-    return utils.check_pip_install_extra(
-        io,
-        "streamlit",
-        "You need to install the aider browser feature",
-        ["aider-chat[browser]"],
-    )
+    # OFFLINE FORK: disabled to prevent external package installation
+    io.tool_error("Browser mode is disabled in offline mode.")
+    return False
 
 
 def write_streamlit_credentials():
@@ -449,7 +446,8 @@ def sanity_check_repo(repo, io):
 
 
 def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
-    report_uncaught_exceptions()
+    # OFFLINE FORK: disabled report_uncaught_exceptions to prevent browser opening
+    # report_uncaught_exceptions()
 
     if argv is None:
         argv = sys.argv[1:]
@@ -1097,15 +1095,13 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         args.message = "/paste"
 
     if args.show_release_notes is True:
-        io.tool_output(f"Opening release notes: {urls.release_notes}")
-        io.tool_output()
-        webbrowser.open(urls.release_notes)
+        io.tool_output(f"Release notes: {urls.release_notes}")
+        io.tool_output("(Opening release notes in browser is disabled in offline mode.)")
     elif args.show_release_notes is None and is_first_run:
         io.tool_output()
-        io.offer_url(
-            urls.release_notes,
-            "Would you like to see what's new in this version?",
-            allow_never=False,
+        io.tool_output(
+            "Would you like to see what's new in this version?"
+            f" Visit {urls.release_notes} (disabled in offline mode)."
         )
 
     if git_root and Path.cwd().resolve() != Path(git_root).resolve():

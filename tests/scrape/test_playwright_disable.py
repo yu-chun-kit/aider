@@ -17,12 +17,11 @@ class DummyIO:
         self.outputs.append(f"error: {msg}")
 
 
-def test_scraper_disable_playwright_flag(monkeypatch):
+def test_scraper_disabled_offline(monkeypatch):
+    """OFFLINE FORK: scrape always returns None and does not make network requests."""
     io = DummyIO()
-    # Simulate that playwright is not available
-    # (disable_playwright just means playwright_available=False)
     scraper = Scraper(print_error=io.tool_error, playwright_available=False)
-    # Patch scrape_with_httpx to check it is called
+    # Patch scrape_with_httpx to ensure it is NOT called
     called = {}
 
     def fake_httpx(url):
@@ -31,15 +30,15 @@ def test_scraper_disable_playwright_flag(monkeypatch):
 
     scraper.scrape_with_httpx = fake_httpx
     content = scraper.scrape("http://example.com")
-    assert content == "plain text"
-    assert called["called"]
+    assert content is None
+    assert not called.get("called", False)
 
 
-def test_scraper_enable_playwright(monkeypatch):
+def test_scraper_enable_playwright_disabled_offline(monkeypatch):
+    """OFFLINE FORK: even with playwright available, scrape is disabled."""
     io = DummyIO()
-    # Simulate that playwright is available and should be used
     scraper = Scraper(print_error=io.tool_error, playwright_available=True)
-    # Patch scrape_with_playwright to check it is called
+    # Patch scrape_with_playwright to ensure it is NOT called
     called = {}
 
     def fake_playwright(url):
@@ -48,8 +47,8 @@ def test_scraper_enable_playwright(monkeypatch):
 
     scraper.scrape_with_playwright = fake_playwright
     content = scraper.scrape("http://example.com")
-    assert content.startswith("hi") or "<html>" in content
-    assert called["called"]
+    assert content is None
+    assert not called.get("called", False)
 
 
 def test_commands_web_disable_playwright(monkeypatch):

@@ -16,18 +16,9 @@ warnings.simplefilter("ignore", category=FutureWarning)
 
 
 def install_help_extra(io):
-    pip_install_cmd = [
-        "aider-chat[help]",
-        "--extra-index-url",
-        "https://download.pytorch.org/whl/cpu",
-    ]
-    res = utils.check_pip_install_extra(
-        io,
-        "llama_index.embeddings.huggingface",
-        "To use interactive /help you need to install the help extras",
-        pip_install_cmd,
-    )
-    return res
+    # OFFLINE FORK: disabled to prevent external network requests and package installation
+    io.tool_error("Interactive /help is disabled in offline mode.")
+    return False
 
 
 def get_package_files():

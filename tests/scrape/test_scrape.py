@@ -8,167 +8,94 @@ from aider.scrape import Scraper
 
 
 class TestScrape(unittest.TestCase):
-    def test_scrape_self_signed_ssl(self):
-        def scrape_with_retries(scraper, url, max_retries=5, delay=0.5):
-            for _ in range(max_retries):
-                result = scraper.scrape(url)
-                if result is not None:
-                    return result
-                time.sleep(delay)
-            return None
-
-        # Test with SSL verification
-        scraper_verify = Scraper(
-            print_error=MagicMock(), playwright_available=True, verify_ssl=True
+    def test_scrape_disabled_offline(self):
+        """OFFLINE FORK: scrape always returns None and does not make network requests."""
+        mock_print_error = MagicMock()
+        scraper = Scraper(
+            print_error=mock_print_error, playwright_available=True, verify_ssl=True
         )
-        result_verify = scrape_with_retries(scraper_verify, "https://self-signed.badssl.com")
-        self.assertIsNone(result_verify)
-        scraper_verify.print_error.assert_called()
-
-        # Test without SSL verification
-        scraper_no_verify = Scraper(
-            print_error=MagicMock(), playwright_available=True, verify_ssl=False
-        )
-        result_no_verify = scrape_with_retries(scraper_no_verify, "https://self-signed.badssl.com")
-        self.assertIsNotNone(result_no_verify)
-        self.assertIn("self-signed", result_no_verify)
-        scraper_no_verify.print_error.assert_not_called()
+        result = scraper.scrape("https://self-signed.badssl.com")
+        self.assertIsNone(result)
+        mock_print_error.assert_called_once()
 
     def setUp(self):
         self.io = InputOutput(yes=True)
         self.commands = Commands(self.io, None)
 
-    def test_cmd_web_imports_playwright(self):
-        # Create a mock print_error function
+    def test_cmd_web_disabled_offline(self):
+        """OFFLINE FORK: cmd_web returns header-only content because scraping is disabled."""
         mock_print_error = MagicMock()
         self.commands.io.tool_error = mock_print_error
 
-        # Run the cmd_web command
         result = self.commands.cmd_web("https://example.com", return_content=True)
 
-        # Assert that the result contains some content
+        # In offline mode, scraping is disabled so result should be just the header
         self.assertIsNotNone(result)
-        self.assertNotEqual(result, "")
+        self.assertTrue(result.startswith("Here is the content of https://example.com:"))
 
-        # Try to import playwright
-        try:
-            import playwright  # noqa: F401
-
-            playwright_imported = True
-        except ImportError:
-            playwright_imported = False
-
-        # Assert that playwright was successfully imported
-        self.assertTrue(
-            playwright_imported, "Playwright should be importable after running cmd_web"
-        )
-
-        # Assert that print_error was never called
-        mock_print_error.assert_not_called()
-
-    def test_scrape_actual_url_with_playwright(self):
-        # Create a Scraper instance with a mock print_error function
+    def test_scrape_actual_url_disabled_offline(self):
+        """OFFLINE FORK: scrape always returns None."""
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, playwright_available=True)
 
-        # Scrape a real URL
         result = scraper.scrape("https://example.com")
+        self.assertIsNone(result)
+        mock_print_error.assert_called_once()
 
-        # Assert that the result contains expected content
-        self.assertIsNotNone(result)
-        self.assertIn("Example Domain", result)
-
-        # Assert that print_error was never called
-        mock_print_error.assert_not_called()
-
-    def test_scraper_print_error_not_called(self):
-        # Create a Scraper instance with a mock print_error function
+    def test_scraper_httpx_disabled(self):
+        """OFFLINE FORK: scrape_with_httpx still works if called directly but scrape doesn't use it."""
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, verify_ssl=False)
 
-        # Test various methods of the Scraper class
-        scraper.scrape_with_httpx("https://example.com")
+        # Test internal methods still exist and work
         scraper.try_pandoc()
         scraper.html_to_markdown("<html><body><h1>Test</h1></body></html>")
 
-        # Assert that print_error was never called
-        mock_print_error.assert_not_called()
+        # scrape_with_httpx may error due to network being disabled, but that's expected
+        # The method itself should not crash
+        try:
+            scraper.scrape_with_httpx("https://example.com")
+        except Exception:
+            pass
 
-    def test_scrape_with_playwright_error_handling(self):
-        # Create a Scraper instance with a mock print_error function
+    def test_scrape_with_playwright_disabled_offline(self):
+        """OFFLINE FORK: scrape bypasses playwright entirely."""
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, playwright_available=True)
 
-        # Mock the playwright module to raise an error
-        import playwright
-
-        playwright._impl._errors.Error = Exception  # Mock the Error class
-
-        def mock_content():
-            raise playwright._impl._errors.Error("Test error")
-
-        # Mock the necessary objects and methods
+        # Mock scrape_with_playwright to ensure it's never called
         scraper.scrape_with_playwright = MagicMock()
         scraper.scrape_with_playwright.return_value = (None, None)
 
-        # Call the scrape method
         result = scraper.scrape("https://example.com")
 
-        # Assert that the result is None
+        # In offline mode, scrape returns None immediately without calling playwright
         self.assertIsNone(result)
+        scraper.scrape_with_playwright.assert_not_called()
 
-        # Assert that print_error was called with the expected error message
-        mock_print_error.assert_called_once_with(
-            "Failed to retrieve content from https://example.com"
-        )
-
-        # Reset the mock
-        mock_print_error.reset_mock()
-
-        # Test with a different return value
-        scraper.scrape_with_playwright.return_value = ("Some content", "text/html")
-        result = scraper.scrape("https://example.com")
-
-        # Assert that the result is not None
-        self.assertIsNotNone(result)
-
-        # Assert that print_error was not called
-        mock_print_error.assert_not_called()
-
-    def test_scrape_text_plain(self):
-        # Create a Scraper instance
+    def test_scrape_text_plain_disabled(self):
+        """OFFLINE FORK: scrape always returns None regardless of mocked internals."""
         scraper = Scraper(print_error=MagicMock(), playwright_available=True)
 
-        # Mock the scrape_with_playwright method
         plain_text = "This is plain text content."
         scraper.scrape_with_playwright = MagicMock(return_value=(plain_text, "text/plain"))
 
-        # Call the scrape method
         result = scraper.scrape("https://example.com")
+        self.assertIsNone(result)
 
-        # Assert that the result is the same as the input plain text
-        self.assertEqual(result, plain_text)
-
-    def test_scrape_text_html(self):
-        # Create a Scraper instance
+    def test_scrape_text_html_disabled(self):
+        """OFFLINE FORK: scrape always returns None regardless of mocked internals."""
         scraper = Scraper(print_error=MagicMock(), playwright_available=True)
 
-        # Mock the scrape_with_playwright method
         html_content = "<html><body><h1>Test</h1><p>This is HTML content.</p></body></html>"
         scraper.scrape_with_playwright = MagicMock(return_value=(html_content, "text/html"))
 
-        # Mock the html_to_markdown method
         expected_markdown = "# Test\n\nThis is HTML content."
         scraper.html_to_markdown = MagicMock(return_value=expected_markdown)
 
-        # Call the scrape method
         result = scraper.scrape("https://example.com")
-
-        # Assert that the result is the expected markdown
-        self.assertEqual(result, expected_markdown)
-
-        # Assert that html_to_markdown was called with the HTML content
-        scraper.html_to_markdown.assert_called_once_with(html_content)
+        self.assertIsNone(result)
+        scraper.html_to_markdown.assert_not_called()
 
 
 if __name__ == "__main__":

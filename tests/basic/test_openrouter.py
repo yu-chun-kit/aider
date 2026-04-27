@@ -1,24 +1,15 @@
+import json
 from pathlib import Path
 
 from aider.models import ModelInfoManager
 from aider.openrouter import OpenRouterModelManager
 
 
-class DummyResponse:
-    """Minimal stand-in for requests.Response used in tests."""
-
-    def __init__(self, json_data):
-        self.status_code = 200
-        self._json_data = json_data
-
-    def json(self):
-        return self._json_data
-
-
 def test_openrouter_get_model_info_from_cache(monkeypatch, tmp_path):
     """
     OpenRouterModelManager should return correct metadata taken from the
-    downloaded (and locally cached) models JSON payload.
+    locally cached models JSON payload.
+    OFFLINE FORK: network requests are disabled, so we pre-populate the cache file.
     """
     payload = {
         "data": [
@@ -31,9 +22,12 @@ def test_openrouter_get_model_info_from_cache(monkeypatch, tmp_path):
         ]
     }
 
-    # Fake out the network call and the HOME directory used for the cache file
-    monkeypatch.setattr("requests.get", lambda *a, **k: DummyResponse(payload))
+    # Pre-populate the cache file instead of faking a network call
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    cache_dir = tmp_path / ".aider" / "caches"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "openrouter_models.json"
+    cache_file.write_text(json.dumps(payload))
 
     manager = OpenRouterModelManager()
     info = manager.get_model_info("openrouter/mistralai/mistral-medium-3")

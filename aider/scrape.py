@@ -38,42 +38,8 @@ def has_playwright():
 
 
 def install_playwright(io):
-    has_pip, has_chromium = check_env()
-    if has_pip and has_chromium:
-        return True
-
-    pip_cmd = utils.get_pip_install(["aider-chat[playwright]"])
-    chromium_cmd = "-m playwright install --with-deps chromium"
-    chromium_cmd = [sys.executable] + chromium_cmd.split()
-
-    cmds = ""
-    if not has_pip:
-        cmds += " ".join(pip_cmd) + "\n"
-    if not has_chromium:
-        cmds += " ".join(chromium_cmd) + "\n"
-
-    text = f"""For the best web scraping, install Playwright:
-
-{cmds}
-See {urls.enable_playwright} for more info.
-"""
-
-    io.tool_output(text)
-    if not io.confirm_ask("Install playwright?", default="y"):
-        return
-
-    if not has_pip:
-        success, output = utils.run_install(pip_cmd)
-        if not success:
-            io.tool_error(output)
-            return
-
-    success, output = utils.run_install(chromium_cmd)
-    if not success:
-        io.tool_error(output)
-        return
-
-    return True
+    # OFFLINE FORK: disabled to prevent external network requests
+    return False
 
 
 class Scraper:
@@ -98,28 +64,13 @@ class Scraper:
     def scrape(self, url):
         """
         Scrape a url and turn it into readable markdown if it's HTML.
-        If it's plain text or non-HTML, return it as-is.
+        OFFLINE FORK: web scraping is disabled.
 
         `url` - the URL to scrape.
         """
-
-        if self.playwright_available:
-            content, mime_type = self.scrape_with_playwright(url)
-        else:
-            content, mime_type = self.scrape_with_httpx(url)
-
-        if not content:
-            self.print_error(f"Failed to retrieve content from {url}")
-            return None
-
-        # Check if the content is HTML based on MIME type or content
-        if (mime_type and mime_type.startswith("text/html")) or (
-            mime_type is None and self.looks_like_html(content)
-        ):
-            self.try_pandoc()
-            content = self.html_to_markdown(content)
-
-        return content
+        # OFFLINE FORK: disabled to prevent external network requests
+        self.print_error(f"Web scraping is disabled in offline fork: {url}")
+        return None
 
     def looks_like_html(self, content):
         """

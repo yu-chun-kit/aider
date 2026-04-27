@@ -17,3 +17,10 @@ aider/_version.py
 .gitattributes
 tmp.benchmarks/
 .docker_bash_history
+
+# AI planning docs (not for upstream)
+AGENTS.md
+findings.md
+progress.md
+task_plan.md
+test_output.txt

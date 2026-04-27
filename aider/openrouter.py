@@ -112,17 +112,5 @@ class OpenRouterModelManager:
         self._cache_loaded = True
 
     def _update_cache(self) -> None:
-        try:
-            response = requests.get(self.MODELS_URL, timeout=10, verify=self.verify_ssl)
-            if response.status_code == 200:
-                self.content = response.json()
-                try:
-                    self.cache_file.write_text(json.dumps(self.content, indent=2))
-                except OSError:
-                    pass  # Non-fatal if we can’t write the cache
-        except Exception as ex:  # noqa: BLE001
-            print(f"Failed to fetch OpenRouter model list: {ex}")
-            try:
-                self.cache_file.write_text("{}")
-            except OSError:
-                pass
+        # OFFLINE FORK: disabled to prevent external network requests
+        pass

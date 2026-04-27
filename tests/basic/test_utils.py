@@ -1,8 +1,11 @@
 import os
 
+import pytest
+
 from aider.utils import safe_abs_path
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows requires admin for symlinks")
 def test_safe_abs_path_symlink_loop(tmp_path):
     # Create circular symlink: a -> b -> a
     link_a = tmp_path / "link_a"

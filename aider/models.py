@@ -194,24 +194,8 @@ class ModelInfoManager:
         self._cache_loaded = True
 
     def _update_cache(self):
-        try:
-            import requests
-
-            # Respect the --no-verify-ssl switch
-            response = requests.get(self.MODEL_INFO_URL, timeout=5, verify=self.verify_ssl)
-            if response.status_code == 200:
-                self.content = response.json()
-                try:
-                    self.cache_file.write_text(json.dumps(self.content, indent=4))
-                except OSError:
-                    pass
-        except Exception as ex:
-            print(str(ex))
-            try:
-                # Save empty dict to cache file on failure
-                self.cache_file.write_text("{}")
-            except OSError:
-                pass
+        # OFFLINE FORK: disabled to prevent fetching model info from external URL
+        self.content = self.content or {}
 
     def get_model_from_cached_json_db(self, model):
         data = self.local_model_metadata.get(model)
@@ -267,53 +251,8 @@ class ModelInfoManager:
         return cached_info
 
     def fetch_openrouter_model_info(self, model):
-        """
-        Fetch model info by scraping the openrouter model page.
-        Expected URL: https://openrouter.ai/<model_route>
-        Example: openrouter/qwen/qwen-2.5-72b-instruct:free
-        Returns a dict with keys: max_tokens, max_input_tokens, max_output_tokens,
-        input_cost_per_token, output_cost_per_token.
-        """
-        url_part = model[len("openrouter/") :]
-        url = "https://openrouter.ai/" + url_part
-        try:
-            import requests
-
-            response = requests.get(url, timeout=5, verify=self.verify_ssl)
-            if response.status_code != 200:
-                return {}
-            html = response.text
-            import re
-
-            if re.search(
-                rf"The model\s*.*{re.escape(url_part)}.* is not available", html, re.IGNORECASE
-            ):
-                print(f"\033[91mError: Model '{url_part}' is not available\033[0m")
-                return {}
-            text = re.sub(r"<[^>]+>", " ", html)
-            context_match = re.search(r"([\d,]+)\s*context", text)
-            if context_match:
-                context_str = context_match.group(1).replace(",", "")
-                context_size = int(context_str)
-            else:
-                context_size = None
-            input_cost_match = re.search(r"\$\s*([\d.]+)\s*/M input tokens", text, re.IGNORECASE)
-            output_cost_match = re.search(r"\$\s*([\d.]+)\s*/M output tokens", text, re.IGNORECASE)
-            input_cost = float(input_cost_match.group(1)) / 1000000 if input_cost_match else None
-            output_cost = float(output_cost_match.group(1)) / 1000000 if output_cost_match else None
-            if context_size is None or input_cost is None or output_cost is None:
-                return {}
-            params = {
-                "max_input_tokens": context_size,
-                "max_tokens": context_size,
-                "max_output_tokens": context_size,
-                "input_cost_per_token": input_cost,
-                "output_cost_per_token": output_cost,
-            }
-            return params
-        except Exception as e:
-            print("Error fetching openrouter info:", str(e))
-            return {}
+        # OFFLINE FORK: disabled to prevent external network requests
+        return {}
 
 
 model_info_manager = ModelInfoManager()

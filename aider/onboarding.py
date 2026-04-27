@@ -16,100 +16,32 @@ from aider.io import InputOutput
 
 
 def check_openrouter_tier(api_key):
-    """
-    Checks if the user is on a free tier for OpenRouter.
-
-    Args:
-        api_key: The OpenRouter API key to check.
-
-    Returns:
-        A boolean indicating if the user is on a free tier (True) or paid tier (False).
-        Returns True if the check fails.
-    """
-    try:
-        response = requests.get(
-            "https://openrouter.ai/api/v1/auth/key",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5,  # Add a reasonable timeout
-        )
-        response.raise_for_status()
-        data = response.json()
-        # According to the documentation, 'is_free_tier' will be true if the user has never paid
-        return data.get("data", {}).get("is_free_tier", True)  # Default to True if not found
-    except Exception:
-        # If there's any error, we'll default to assuming free tier
-        return True
+    # OFFLINE FORK: disabled to prevent external network requests
+    return True
 
 
 def try_to_select_default_model():
     """
     Attempts to select a default model based on available API keys.
-    Checks OpenRouter tier status to select appropriate model.
+    OFFLINE FORK: only suggests local models.
 
     Returns:
         The name of the selected model, or None if no suitable default is found.
     """
-    # Special handling for OpenRouter
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if openrouter_key:
-        # Check if the user is on a free tier
-        is_free_tier = check_openrouter_tier(openrouter_key)
-        if is_free_tier:
-            return "openrouter/deepseek/deepseek-r1:free"
-        else:
-            return "openrouter/anthropic/claude-sonnet-4"
-
-    # Select model based on other available API keys
-    model_key_pairs = [
-        ("ANTHROPIC_API_KEY", "sonnet"),
-        ("DEEPSEEK_API_KEY", "deepseek"),
-        ("OPENAI_API_KEY", "gpt-4o"),
-        ("GEMINI_API_KEY", "gemini/gemini-2.5-pro-exp-03-25"),
-        ("VERTEXAI_PROJECT", "vertex_ai/gemini-2.5-pro-exp-03-25"),
+    # OFFLINE FORK: only support local inference servers
+    # OPENAI_API_KEY is kept because local OpenAI-compatible servers (vllm, lmstudio) use it
+    local_model_envs = [
+        ("OLLAMA_API_KEY", "ollama/llama3"),
+        ("OPENAI_API_KEY", "openai/local-model"),
     ]
-
-    for env_key, model_name in model_key_pairs:
-        api_key_value = os.environ.get(env_key)
-        if api_key_value:
+    for env_key, model_name in local_model_envs:
+        if os.environ.get(env_key):
             return model_name
-
     return None
 
 
 def offer_openrouter_oauth(io, analytics):
-    """
-    Offers OpenRouter OAuth flow to the user if no API keys are found.
-
-    Args:
-        io: The InputOutput object for user interaction.
-        analytics: The Analytics object for tracking events.
-
-    Returns:
-        True if authentication was successful, False otherwise.
-    """
-    # No API keys found - Offer OpenRouter OAuth
-    io.tool_output("OpenRouter provides free and paid access to many LLMs.")
-    # Use confirm_ask which handles non-interactive cases
-    if io.confirm_ask(
-        "Login to OpenRouter or create a free account?",
-        default="y",
-    ):
-        analytics.event("oauth_flow_initiated", provider="openrouter")
-        openrouter_key = start_openrouter_oauth_flow(io, analytics)
-        if openrouter_key:
-            # Successfully got key via OAuth, use the default OpenRouter model
-            # Ensure OPENROUTER_API_KEY is now set in the environment for later use
-            os.environ["OPENROUTER_API_KEY"] = openrouter_key
-            # Track OAuth success leading to model selection
-            analytics.event("oauth_flow_success")
-            return True
-
-        # OAuth failed or was cancelled by user implicitly (e.g., closing browser)
-        # Error messages are handled within start_openrouter_oauth_flow
-        analytics.event("oauth_flow_failure")
-        io.tool_error("OpenRouter authentication did not complete successfully.")
-        # Fall through to the final error message
-
+    # OFFLINE FORK: OpenRouter OAuth is disabled in offline mode
     return False
 
 
@@ -173,41 +105,9 @@ def generate_pkce_codes():
 
 # Function to exchange the authorization code for an API key
 def exchange_code_for_key(code, code_verifier, io):
-    try:
-        response = requests.post(
-            "https://openrouter.ai/api/v1/auth/keys",
-            headers={"Content-Type": "application/json"},
-            json={
-                "code": code,
-                "code_verifier": code_verifier,
-                "code_challenge_method": "S256",
-            },
-            timeout=30,  # Add a timeout
-        )
-        response.raise_for_status()  # Raise exception for bad status codes (4xx or 5xx)
-        data = response.json()
-        api_key = data.get("key")
-        if not api_key:
-            io.tool_error("Error: 'key' not found in OpenRouter response.")
-            io.tool_error(f"Response: {response.text}")
-            return None
-        return api_key
-    except requests.exceptions.Timeout:
-        io.tool_error("Error: Request to OpenRouter timed out during code exchange.")
-        return None
-    except requests.exceptions.HTTPError as e:
-        io.tool_error(
-            "Error exchanging code for OpenRouter key:"
-            f" {e.response.status_code} {e.response.reason}"
-        )
-        io.tool_error(f"Response: {e.response.text}")
-        return None
-    except requests.exceptions.RequestException as e:
-        io.tool_error(f"Error exchanging code for OpenRouter key: {e}")
-        return None
-    except Exception as e:
-        io.tool_error(f"Unexpected error during code exchange: {e}")
-        return None
+    # OFFLINE FORK: disabled to prevent external network requests
+    io.tool_error("OpenRouter OAuth is disabled in offline mode.")
+    return None
 
 
 # Function to start the OAuth flow

@@ -24,21 +24,15 @@ class TestModelInfoManager(TestCase):
 
     @patch("requests.get")
     def test_update_cache_respects_verify_ssl(self, mock_get):
-        # Setup mock response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"test_model": {"max_tokens": 4096}}
-        mock_get.return_value = mock_response
-
+        # OFFLINE FORK: _update_cache should never make network requests
         # Test with default verify_ssl=True
         self.manager._update_cache()
-        mock_get.assert_called_with(self.manager.MODEL_INFO_URL, timeout=5, verify=True)
+        mock_get.assert_not_called()
 
         # Test with verify_ssl=False
-        mock_get.reset_mock()
         self.manager.set_verify_ssl(False)
         self.manager._update_cache()
-        mock_get.assert_called_with(self.manager.MODEL_INFO_URL, timeout=5, verify=False)
+        mock_get.assert_not_called()
 
     def test_lazy_loading_cache(self):
         # Create a cache file
@@ -62,19 +56,14 @@ class TestModelInfoManager(TestCase):
 
     @patch("requests.get")
     def test_verify_ssl_setting_before_cache_loading(self, mock_get):
-        # Setup mock response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"test_model": {"max_tokens": 4096}}
-        mock_get.return_value = mock_response
-
+        # OFFLINE FORK: network requests are disabled
         # Set verify_ssl to False before any cache operations
         self.manager.set_verify_ssl(False)
 
         # Force cache update by making it look expired
         with patch("time.time", return_value=9999999999):
-            # This should trigger _update_cache
+            # This should trigger _update_cache but not make a network call
             self.manager.get_model_from_cached_json_db("test_model")
 
-            # Verify _update_cache was called with verify=False
-            mock_get.assert_called_with(self.manager.MODEL_INFO_URL, timeout=5, verify=False)
+            # Verify no network request was made
+            mock_get.assert_not_called()
