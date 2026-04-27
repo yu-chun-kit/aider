@@ -1,0 +1,10 @@
+# Offline fork: always keep our neutered version of these files during merge.
+# If upstream changes them, git will automatically prefer our local copy.
+# This prevents merge conflicts on files that we have fully disabled.
+
+aider/versioncheck.py merge=ours
+aider/openrouter.py merge=ours
+aider/scrape.py merge=ours
+aider/report.py merge=ours
+aider/help.py merge=ours
+aider/urls.py merge=ours

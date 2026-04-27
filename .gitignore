@@ -14,7 +14,6 @@ aider/__version__.py
 aider/_version.py
 .venv/
 .#*
-.gitattributes
 tmp.benchmarks/
 .docker_bash_history
 
