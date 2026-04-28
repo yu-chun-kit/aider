@@ -47,6 +47,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "aider/_version.py"
+fallback_version = "0.86.3"
 
 [tool.codespell]
 skip = "*.svg,Gemfile.lock,tests/fixtures/*,aider/website/assets/*"

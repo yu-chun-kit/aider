@@ -12,6 +12,9 @@ AIDER_APP_NAME = "Aider"
 os.environ["OR_SITE_URL"] = AIDER_SITE_URL
 os.environ["OR_APP_NAME"] = AIDER_APP_NAME
 os.environ["LITELLM_MODE"] = "PRODUCTION"
+# Prevent litellm from fetching remote model_prices_and_context_window.json
+# (causes a multi-second hang in air-gapped environments).
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 
 # `import litellm` takes 1.5 seconds, defer it!
 
