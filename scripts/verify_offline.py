@@ -7,6 +7,7 @@ Usage:
     python scripts/verify_offline.py
 """
 
+import ast
 import sys
 from pathlib import Path
 
@@ -24,10 +25,10 @@ FULLY_DISABLED = [
 # Partially modified files: we check key functions for early returns / noops.
 PARTIAL_CHECKS = {
     "aider/analytics.py": {
-        "Analytics.__init__": "permanently_disable = True",
+        "Analytics.__init__": "self.disable(True)",
     },
     "aider/models.py": {
-        "ModelInfoManager._update_cache": "pass",
+        "ModelInfoManager._update_cache": "self.content = self.content or {}",
     },
     "aider/onboarding.py": {
         "check_openrouter_tier": "return True",
@@ -40,15 +41,49 @@ PARTIAL_CHECKS = {
 }
 
 
-def _func_body(file_path: Path, func_name: str) -> str:
-    """Return the first ~800 chars after the function definition."""
-    source = file_path.read_text(encoding="utf-8")
-    # Support simple "def func_name(" or "class C: def func_name("
-    pattern = f"def {func_name}("
-    idx = source.find(pattern)
-    if idx == -1:
+def _ast_body_segment(source: str, node: ast.AST) -> str:
+    start = getattr(node, "lineno", None)
+    end = getattr(node, "end_lineno", None)
+    if start is None:
         return ""
-    return source[idx : idx + 800]
+
+    lines = source.splitlines()
+    if end is None:
+        end = min(start + 40, len(lines))
+    return "\n".join(lines[start - 1 : end])
+
+
+def _find_qualified_node(tree: ast.AST, dotted_name: str):
+    parts = dotted_name.split(".")
+
+    def walk(nodes, remaining):
+        if not remaining:
+            return None
+
+        target = remaining[0]
+        for node in nodes:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == target:
+                if len(remaining) == 1:
+                    return node
+            elif isinstance(node, ast.ClassDef) and node.name == target:
+                if len(remaining) == 1:
+                    return node
+                found = walk(node.body, remaining[1:])
+                if found is not None:
+                    return found
+        return None
+
+    return walk(getattr(tree, "body", []), parts)
+
+
+def _func_body(file_path: Path, func_name: str) -> str:
+    """Return the source segment for a function/method definition."""
+    source = file_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(file_path))
+    node = _find_qualified_node(tree, func_name)
+    if node is None:
+        return ""
+    return _ast_body_segment(source, node)
 
 
 def check_fully_disabled() -> bool:
