@@ -5,12 +5,14 @@ import json
 import math
 import os
 import platform
+import socket
 import sys
 import time
 from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
+from urllib.parse import urlparse
 
 import json5
 import yaml
@@ -29,6 +31,10 @@ RETRY_TIMEOUT = 60
 # 120s is enough for slow local inference while failing fast if the
 # server is not running. Users can override via --timeout.
 request_timeout = 120
+
+# Quick connectivity pre-check timeout for Ollama (seconds).
+# Fails fast if the server is not reachable, before the full litellm call.
+OLLAMA_CONNECT_TIMEOUT = 3.0
 
 DEFAULT_MODEL_NAME = "gpt-4o"
 ANTHROPIC_BETA_HEADER = "prompt-caching-2024-07-31,pdfs-2024-09-25"
@@ -866,6 +872,33 @@ class Model(ModelSettings):
     def is_ollama(self):
         return self.name.startswith("ollama/") or self.name.startswith("ollama_chat/")
 
+    def _check_ollama_health(self):
+        """Quick socket-level check if the Ollama server is reachable.
+        
+        Fails fast (OLLAMA_CONNECT_TIMEOUT seconds) instead of waiting for
+        the full litellm completion timeout when Ollama is not running.
+        """
+        if os.environ.get("AIDER_SKIP_OLLAMA_HEALTH_CHECK"):
+            return
+
+        api_base = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
+        parsed = urlparse(api_base)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 11434
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(OLLAMA_CONNECT_TIMEOUT)
+        try:
+            sock.connect((host, port))
+        except (socket.timeout, ConnectionRefusedError, OSError) as e:
+            raise ConnectionError(
+                f"Unable to connect to Ollama server at {host}:{port}. "
+                f"Is Ollama running?\n"
+                f"Error: {e}"
+            )
+        finally:
+            sock.close()
+
     def github_copilot_token_to_open_ai_key(self, extra_headers):
         # check to see if there's an openai api key
         # If so, check to see if it's expire
@@ -944,9 +977,11 @@ class Model(ModelSettings):
             kwargs["tool_choice"] = {"type": "function", "function": {"name": function["name"]}}
         if self.extra_params:
             kwargs.update(self.extra_params)
-        if self.is_ollama() and "num_ctx" not in kwargs:
-            num_ctx = int(self.token_count(messages) * 1.25) + 8192
-            kwargs["num_ctx"] = num_ctx
+        if self.is_ollama():
+            self._check_ollama_health()
+            if "num_ctx" not in kwargs:
+                num_ctx = int(self.token_count(messages) * 1.25) + 8192
+                kwargs["num_ctx"] = num_ctx
         key = json.dumps(kwargs, sort_keys=True).encode()
 
         # dump(kwargs)
