@@ -15,7 +15,6 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 # Files that are fully disabled and protected by .gitattributes merge=ours.
 FULLY_DISABLED = [
-    REPO_ROOT / "aider" / "versioncheck.py",
     REPO_ROOT / "aider" / "openrouter.py",
     REPO_ROOT / "aider" / "scrape.py",
     REPO_ROOT / "aider" / "report.py",
@@ -38,7 +37,13 @@ PARTIAL_CHECKS = {
     },
     "aider/main.py": {
         "check_streamlit_install": "return False",
+        "reject_online_feature": "disabled in offline mode",
         "validate_offline_model": "Offline mode only allows local or intranet models.",
+    },
+    "aider/versioncheck.py": {
+        "check_version": "disabled in offline mode",
+        "install_upgrade": "disabled in offline mode",
+        "install_from_main_branch": "disabled in offline mode",
     },
 }
 

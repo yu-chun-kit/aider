@@ -28,9 +28,6 @@ class TestDeprecated(TestCase):
         mock_offer_url.return_value = False
         # Test all deprecated flags to ensure they show warnings
         deprecated_flags = [
-            "--opus",
-            "--sonnet",
-            "--haiku",
             "--4",
             "-4",
             "--4o",
@@ -40,7 +37,6 @@ class TestDeprecated(TestCase):
             "--35-turbo",
             "--3",
             "-3",
-            "--deepseek",
             "--o1-mini",
             "--o1-preview",
         ]
@@ -77,7 +73,7 @@ class TestDeprecated(TestCase):
         # Prevent URL launches during tests
         mock_offer_url.return_value = False
         # Test that the warning uses the model alias if available
-        with patch("aider.models.MODEL_ALIASES", {"gpt4": "gpt-4-0613"}):
+        with patch("aider.models.MODEL_ALIASES", {"gpt4": "openai/gpt-4-0613"}):
             with patch("aider.models.Model"):
                 main(
                     ["--4", "--no-git", "--exit", "--yes"], input=DummyInput(), output=DummyOutput()
@@ -95,22 +91,18 @@ class TestDeprecated(TestCase):
                 )
                 warning_msg = deprecation_warning
                 self.assertIn("--model gpt4", warning_msg)
-                self.assertNotIn("--model gpt-4-0613", warning_msg)
+                self.assertNotIn("--model openai/gpt-4-0613", warning_msg)
 
     def test_model_is_set_correctly(self):
         test_cases = [
-            ("opus", "claude-3-opus-20240229"),
-            ("sonnet", "anthropic/claude-3-7-sonnet-20250219"),
-            ("haiku", "claude-3-5-haiku-20241022"),
-            ("4", "gpt-4-0613"),
+            ("4", "openai/gpt-4-0613"),
             # Testing the dash variant with underscore in attribute name
-            ("4o", "gpt-4o"),
-            ("mini", "gpt-4o-mini"),
-            ("4_turbo", "gpt-4-1106-preview"),
-            ("35turbo", "gpt-3.5-turbo"),
-            ("deepseek", "deepseek/deepseek-chat"),
-            ("o1_mini", "o1-mini"),
-            ("o1_preview", "o1-preview"),
+            ("4o", "openai/gpt-4o"),
+            ("mini", "openai/gpt-4o-mini"),
+            ("4_turbo", "openai/gpt-4-1106-preview"),
+            ("35turbo", "openai/gpt-3.5-turbo"),
+            ("o1_mini", "openai/o1-mini"),
+            ("o1_preview", "openai/o1-preview"),
         ]
 
         for flag, expected_model in test_cases:

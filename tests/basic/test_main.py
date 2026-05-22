@@ -354,15 +354,15 @@ class TestMain(TestCase):
 
                     main(["--yes", fname, "--encoding", "iso-8859-15"])
 
-    def test_main_exit_calls_version_check(self):
+    def test_main_exit_rejects_update_check(self):
         with GitTemporaryDirectory():
-            with (
-                patch("aider.main.check_version") as mock_check_version,
-                patch("aider.main.InputOutput") as mock_input_output,
-            ):
-                main(["--exit", "--check-update"], input=DummyInput(), output=DummyOutput())
-                mock_check_version.assert_called_once()
+            with patch("aider.main.InputOutput") as mock_input_output:
+                result = main(["--exit", "--check-update"], input=DummyInput(), output=DummyOutput())
+                self.assertEqual(result, 1)
                 mock_input_output.assert_called_once()
+                mock_input_output.return_value.tool_error.assert_any_call(
+                    "--check-update is disabled in offline mode."
+                )
 
     @patch("aider.main.InputOutput")
     @patch("aider.coders.base_coder.Coder.run")
@@ -672,7 +672,13 @@ class TestMain(TestCase):
 
                 with patch("aider.main.validate_offline_model", return_value=True):
                     main(
-                        ["--sonnet", "--cache-prompts", "--exit", "--yes"],
+                        [
+                            "--model",
+                            "anthropic/claude-3-7-sonnet-20250219",
+                            "--cache-prompts",
+                            "--exit",
+                            "--yes",
+                        ],
                         input=DummyInput(),
                         output=DummyOutput(),
                     )
@@ -687,7 +693,13 @@ class TestMain(TestCase):
         with GitTemporaryDirectory():
             with patch("aider.main.validate_offline_model", return_value=True):
                 coder = main(
-                    ["--sonnet", "--cache-prompts", "--exit", "--yes"],
+                    [
+                        "--model",
+                        "anthropic/claude-3-7-sonnet-20250219",
+                        "--cache-prompts",
+                        "--exit",
+                        "--yes",
+                    ],
                     input=DummyInput(),
                     output=DummyOutput(),
                     return_coder=True,
@@ -954,14 +966,15 @@ class TestMain(TestCase):
     def test_api_key_single(self):
         # Test setting a single API key
         with GitTemporaryDirectory():
-            main(["--api-key", "anthropic=test-key", "--exit", "--yes"])
-            self.assertEqual(os.environ.get("ANTHROPIC_API_KEY"), "test-key")
+            result = main(["--api-key", "openai=test-key", "--exit", "--yes"])
+            self.assertIsNone(result)
+            self.assertEqual(os.environ.get("OPENAI_API_KEY"), "test-key")
 
     def test_api_key_multiple(self):
         # Test setting multiple API keys
         with GitTemporaryDirectory():
-            main(["--api-key", "anthropic=key1", "--api-key", "openai=key2", "--exit", "--yes"])
-            self.assertEqual(os.environ.get("ANTHROPIC_API_KEY"), "key1")
+            main(["--api-key", "ollama=key1", "--api-key", "openai=key2", "--exit", "--yes"])
+            self.assertEqual(os.environ.get("OLLAMA_API_KEY"), "key1")
             self.assertEqual(os.environ.get("OPENAI_API_KEY"), "key2")
 
     def test_api_key_invalid_format(self):
@@ -1132,6 +1145,24 @@ class TestMain(TestCase):
             )
             self.assertEqual(result, 1)
 
+    def test_anthropic_api_key_rejected_offline(self):
+        with GitTemporaryDirectory():
+            result = main(
+                ["--anthropic-api-key", "test-key", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+            self.assertEqual(result, 1)
+
+    def test_non_local_api_key_provider_rejected(self):
+        with GitTemporaryDirectory():
+            result = main(
+                ["--api-key", "anthropic=test-key", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+            self.assertEqual(result, 1)
+
     def test_rejects_non_local_model_provider(self):
         with GitTemporaryDirectory():
             result = main(
@@ -1185,13 +1216,20 @@ class TestMain(TestCase):
         )
 
     def test_thinking_tokens_option(self):
-        with patch("aider.main.validate_offline_model", return_value=True):
-            coder = main(
-                ["--model", "sonnet", "--thinking-tokens", "1000", "--yes", "--exit"],
-                input=DummyInput(),
-                output=DummyOutput(),
-                return_coder=True,
-            )
+        coder = main(
+            [
+                "--model",
+                "openai/gpt-4o",
+                "--thinking-tokens",
+                "1000",
+                "--no-check-model-accepts-settings",
+                "--yes",
+                "--exit",
+            ],
+            input=DummyInput(),
+            output=DummyOutput(),
+            return_coder=True,
+        )
         self.assertEqual(
             coder.main_model.extra_params.get("thinking", {}).get("budget_tokens"), 1000
         )

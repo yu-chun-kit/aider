@@ -122,28 +122,22 @@ class TestModels(unittest.TestCase):
     def test_model_aliases(self):
         # Test common aliases
         model = Model("4")
-        self.assertEqual(model.name, "gpt-4-0613")
+        self.assertEqual(model.name, "openai/gpt-4-0613")
 
         model = Model("4o")
-        self.assertEqual(model.name, "gpt-4o")
+        self.assertEqual(model.name, "openai/gpt-4o")
 
         model = Model("35turbo")
-        self.assertEqual(model.name, "gpt-3.5-turbo")
+        self.assertEqual(model.name, "openai/gpt-3.5-turbo")
 
         model = Model("35-turbo")
-        self.assertEqual(model.name, "gpt-3.5-turbo")
+        self.assertEqual(model.name, "openai/gpt-3.5-turbo")
 
         model = Model("3")
-        self.assertEqual(model.name, "gpt-3.5-turbo")
+        self.assertEqual(model.name, "openai/gpt-3.5-turbo")
 
-        model = Model("sonnet")
-        self.assertEqual(model.name, "claude-sonnet-4-6")
-
-        model = Model("haiku")
-        self.assertEqual(model.name, "claude-haiku-4-5")
-
-        model = Model("opus")
-        self.assertEqual(model.name, "claude-opus-4-7")
+        model = Model("o1-mini")
+        self.assertEqual(model.name, "openai/o1-mini")
 
         # Test non-alias passes through unchanged
         model = Model("gpt-4")

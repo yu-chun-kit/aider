@@ -16,7 +16,7 @@ def install_from_main_branch(io):
     """
     Install the latest version of aider from the main branch of the GitHub repository.
     """
-    # OFFLINE FORK: disabled to prevent external network requests
+    io.tool_error("--install-main-branch is disabled in offline mode.")
     return False
 
 
@@ -24,12 +24,10 @@ def install_upgrade(io, latest_version=None):
     """
     Install the latest version of aider from PyPI.
     """
-    # OFFLINE FORK: disabled to prevent external network requests
+    io.tool_error("--upgrade is disabled in offline mode.")
     return False
 
 
 def check_version(io, just_check=False, verbose=False):
-    # OFFLINE FORK: disabled to prevent external network requests
-    if verbose:
-        io.tool_output("Version checking is disabled in offline fork.")
+    io.tool_error("--check-update is disabled in offline mode.")
     return False

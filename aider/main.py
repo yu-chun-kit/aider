@@ -31,10 +31,9 @@ from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
 from aider.models import ModelSettings
-from aider.onboarding import offer_openrouter_oauth, select_default_model
+from aider.onboarding import select_default_model
 from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.report import report_uncaught_exceptions
-from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 from aider.watch import FileWatcher
 
 from .dump import dump  # noqa: F401
@@ -56,6 +55,11 @@ def validate_openai_api_base(io):
     return False
 
 
+def reject_online_feature(io, feature_name):
+    io.tool_error(f"{feature_name} is disabled in offline mode.")
+    return 1
+
+
 def validate_offline_model(io, model_name, arg_name="--model"):
     resolved_model = models.MODEL_ALIASES.get(model_name, model_name)
     if not models.is_allowed_offline_model(resolved_model):
@@ -73,6 +77,19 @@ def validate_offline_model(io, model_name, arg_name="--model"):
         return validate_openai_api_base(io)
 
     return True
+
+
+def validate_api_key_provider(io, provider_name):
+    normalized = provider_name.strip().lower()
+    if normalized in {"openai", "ollama"}:
+        return True
+
+    io.tool_error(
+        f"Provider '{provider_name}' is not supported in offline mode. Only local or intranet"
+        " providers are allowed."
+    )
+    io.tool_output("Use --api-key openai=<key> for OpenAI-compatible local servers or ollama=<key>.")
+    return False
 
 
 def check_config_files_for_yes(config_files):
@@ -635,6 +652,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         for api_setting in args.api_key:
             try:
                 provider, key = api_setting.split("=", 1)
+                if not validate_api_key_provider(io, provider):
+                    return 1
                 env_var = f"{provider.strip().upper()}_API_KEY"
                 os.environ[env_var] = key.strip()
             except ValueError:
@@ -643,7 +662,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
                 return 1
 
     if args.anthropic_api_key:
-        os.environ["ANTHROPIC_API_KEY"] = args.anthropic_api_key
+        return reject_online_feature(io, "--anthropic-api-key")
 
     if args.openai_api_key:
         os.environ["OPENAI_API_KEY"] = args.openai_api_key
@@ -753,22 +772,20 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             return main(argv, input, output, right_repo_root, return_coder=return_coder)
 
     if args.just_check_update:
-        update_available = check_version(io, just_check=True, verbose=args.verbose)
-        analytics.event("exit", reason="Just checking update")
-        return 0 if not update_available else 1
+        analytics.event("exit", reason="Rejected update check in offline mode")
+        return reject_online_feature(io, "--just-check-update")
 
     if args.install_main_branch:
-        success = install_from_main_branch(io)
-        analytics.event("exit", reason="Installed main branch")
-        return 0 if success else 1
+        analytics.event("exit", reason="Rejected install-main-branch in offline mode")
+        return reject_online_feature(io, "--install-main-branch")
 
     if args.upgrade:
-        success = install_upgrade(io)
-        analytics.event("exit", reason="Upgrade completed")
-        return 0 if success else 1
+        analytics.event("exit", reason="Rejected upgrade in offline mode")
+        return reject_online_feature(io, "--upgrade")
 
     if args.check_update:
-        check_version(io, verbose=args.verbose)
+        analytics.event("exit", reason="Rejected check-update in offline mode")
+        return reject_online_feature(io, "--check-update")
 
     if args.git:
         git_root = setup_git(git_root, io)
@@ -824,43 +841,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.editor_model and not validate_offline_model(io, args.editor_model, "--editor-model"):
         analytics.event("exit", reason="Rejected non-local editor model")
         return 1
-
-    # Check if an OpenRouter model was selected/specified but the key is missing
-    if args.model.startswith("openrouter/") and not os.environ.get("OPENROUTER_API_KEY"):
-        io.tool_warning(
-            f"The specified model '{args.model}' requires an OpenRouter API key, which was not"
-            " found."
-        )
-        # Attempt OAuth flow because the specific model needs it
-        if offer_openrouter_oauth(io, analytics):
-            # OAuth succeeded, the key should now be in os.environ.
-            # Check if the key is now present after the flow.
-            if os.environ.get("OPENROUTER_API_KEY"):
-                io.tool_output(
-                    "OpenRouter successfully connected."
-                )  # Inform user connection worked
-            else:
-                # This case should ideally not happen if offer_openrouter_oauth succeeded
-                # but check defensively.
-                io.tool_error(
-                    "OpenRouter authentication seemed successful, but the key is still missing."
-                )
-                analytics.event(
-                    "exit",
-                    reason="OpenRouter key missing after successful OAuth for specified model",
-                )
-                return 1
-        else:
-            # OAuth failed or was declined by the user
-            io.tool_error(
-                f"Unable to proceed without an OpenRouter API key for model '{args.model}'."
-            )
-            io.offer_url(urls.models_and_keys, "Open documentation URL for more info?")
-            analytics.event(
-                "exit",
-                reason="OpenRouter key missing for specified model and OAuth failed/declined",
-            )
-            return 1
 
     main_model = models.Model(
         args.model,

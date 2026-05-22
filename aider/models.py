@@ -84,53 +84,18 @@ gpt-3.5-turbo-16k-0613
 
 OPENAI_MODELS = [ln.strip() for ln in OPENAI_MODELS.splitlines() if ln.strip()]
 
-ANTHROPIC_MODELS = """
-claude-2
-claude-2.1
-claude-3-haiku-20240307
-claude-3-5-haiku-20241022
-claude-3-opus-20240229
-claude-3-sonnet-20240229
-claude-3-5-sonnet-20240620
-claude-3-5-sonnet-20241022
-claude-sonnet-4-20250514
-claude-opus-4-20250514
-claude-opus-4-6
-claude-opus-4-7
-claude-sonnet-4-5
-claude-sonnet-4-5-20250929
-claude-sonnet-4-6
-claude-haiku-4-5
-claude-haiku-4-5-20251001
-"""
-
-ANTHROPIC_MODELS = [ln.strip() for ln in ANTHROPIC_MODELS.splitlines() if ln.strip()]
-
 # Mapping of model aliases to their canonical names
 MODEL_ALIASES = {
-    # Claude models
-    "sonnet": "claude-sonnet-4-6",
-    "haiku": "claude-haiku-4-5",
-    "opus": "claude-opus-4-7",
-    # GPT models
-    "4": "gpt-4-0613",
-    "4o": "gpt-4o",
-    "4-turbo": "gpt-4-1106-preview",
-    "35turbo": "gpt-3.5-turbo",
-    "35-turbo": "gpt-3.5-turbo",
-    "3": "gpt-3.5-turbo",
-    # Other models
-    "deepseek": "deepseek/deepseek-chat",
-    "flash": "gemini/gemini-flash-latest",
-    "flash-lite": "gemini/gemini-2.5-flash-lite",
-    "quasar": "openrouter/openrouter/quasar-alpha",
-    "r1": "deepseek/deepseek-reasoner",
-    "gemini-2.5-pro": "gemini/gemini-2.5-pro",
-    "gemini-3-pro-preview": "gemini/gemini-3-pro-preview",
-    "gemini": "gemini/gemini-3-pro-preview",
-    "gemini-exp": "gemini/gemini-2.5-pro-exp-03-25",
-    "grok3": "xai/grok-3-beta",
-    "optimus": "openrouter/openrouter/optimus-alpha",
+    # Local OpenAI-compatible shortcuts
+    "4": "openai/gpt-4-0613",
+    "4o": "openai/gpt-4o",
+    "mini": "openai/gpt-4o-mini",
+    "4-turbo": "openai/gpt-4-1106-preview",
+    "35turbo": "openai/gpt-3.5-turbo",
+    "35-turbo": "openai/gpt-3.5-turbo",
+    "3": "openai/gpt-3.5-turbo",
+    "o1-mini": "openai/o1-mini",
+    "o1-preview": "openai/o1-preview",
 }
 # Model metadata loaded from resources and user's files.
 
@@ -719,19 +684,16 @@ class Model(ModelSettings):
             provider = None
 
         keymap = dict(
-            openrouter="OPENROUTER_API_KEY",
             openai="OPENAI_API_KEY",
-            deepseek="DEEPSEEK_API_KEY",
-            gemini="GEMINI_API_KEY",
-            anthropic="ANTHROPIC_API_KEY",
-            groq="GROQ_API_KEY",
-            fireworks_ai="FIREWORKS_API_KEY",
+            lm_studio="OPENAI_API_KEY",
+            vllm="OPENAI_API_KEY",
+            llama_cpp="OPENAI_API_KEY",
+            ollama="OLLAMA_API_KEY",
+            ollama_chat="OLLAMA_API_KEY",
         )
         var = None
         if model in OPENAI_MODELS:
             var = "OPENAI_API_KEY"
-        elif model in ANTHROPIC_MODELS:
-            var = "ANTHROPIC_API_KEY"
         else:
             var = keymap.get(provider)
 

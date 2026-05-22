@@ -67,15 +67,15 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("API Keys and settings")
     group.add_argument(
         "--openai-api-key",
-        help="Specify the OpenAI API key",
+        help="Specify the API key for a local or intranet OpenAI-compatible server",
     )
     group.add_argument(
         "--anthropic-api-key",
-        help="Specify the Anthropic API key",
+        help="Unsupported in offline mode",
     )
     group.add_argument(
         "--openai-api-base",
-        help="Specify the api base url",
+        help="Specify the base URL for a local or intranet OpenAI-compatible server",
     )
     group.add_argument(
         "--openai-api-type",
@@ -105,8 +105,8 @@ def get_parser(default_config_files, git_root):
         action="append",
         metavar="PROVIDER=KEY",
         help=(
-            "Set an API key for a provider (eg: --api-key provider=<key> sets"
-            " PROVIDER_API_KEY=<key>)"
+            "Set an API key for a local provider (for example, --api-key openai=<key> sets"
+            " OPENAI_API_KEY=<key>)"
         ),
         default=[],
     )
@@ -598,14 +598,14 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--just-check-update",
         action="store_true",
-        help="Check for updates and return status in the exit code",
+        help="Disabled in offline mode",
         default=False,
     )
     group.add_argument(
         "--check-update",
         action=argparse.BooleanOptionalAction,
-        help="Check for new aider versions on launch",
-        default=True,
+        help="Disabled in offline mode",
+        default=False,
     )
     group.add_argument(
         "--show-release-notes",
@@ -616,14 +616,14 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--install-main-branch",
         action="store_true",
-        help="Install the latest version from the main branch",
+        help="Disabled in offline mode",
         default=False,
     )
     group.add_argument(
         "--upgrade",
         "--update",
         action="store_true",
-        help="Upgrade aider to the latest version from PyPI",
+        help="Disabled in offline mode",
         default=False,
     )
     group.add_argument(
