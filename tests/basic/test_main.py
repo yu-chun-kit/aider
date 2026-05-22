@@ -22,6 +22,7 @@ class TestMain(TestCase):
     def setUp(self):
         self.original_env = os.environ.copy()
         os.environ["OPENAI_API_KEY"] = "deadbeef"
+        os.environ["OPENAI_API_BASE"] = "http://127.0.0.1:1234/v1"
         os.environ["AIDER_CHECK_UPDATE"] = "false"
         os.environ["AIDER_ANALYTICS"] = "false"
         self.original_cwd = os.getcwd()
@@ -533,10 +534,10 @@ class TestMain(TestCase):
             cwd_config = cwd / ".aider.conf.yml"
             named_config = git_dir / "named.aider.conf.yml"
 
-            cwd_config.write_text("model: gpt-4-32k\nmap-tokens: 4096\n")
-            git_config.write_text("model: gpt-4\nmap-tokens: 2048\n")
-            home_config.write_text("model: gpt-3.5-turbo\nmap-tokens: 1024\n")
-            named_config.write_text("model: gpt-4-1106-preview\nmap-tokens: 8192\n")
+            cwd_config.write_text("model: openai/gpt-4-32k\nmap-tokens: 4096\n")
+            git_config.write_text("model: openai/gpt-4\nmap-tokens: 2048\n")
+            home_config.write_text("model: openai/gpt-3.5-turbo\nmap-tokens: 1024\n")
+            named_config.write_text("model: openai/gpt-4-1106-preview\nmap-tokens: 8192\n")
 
             with (
                 patch("pathlib.Path.home", return_value=fake_home),
@@ -549,7 +550,7 @@ class TestMain(TestCase):
                     output=DummyOutput(),
                 )
                 _, kwargs = MockCoder.call_args
-                self.assertEqual(kwargs["main_model"].name, "gpt-4-1106-preview")
+                self.assertEqual(kwargs["main_model"].name, "openai/gpt-4-1106-preview")
                 self.assertEqual(kwargs["map_tokens"], 8192)
 
                 # Test loading from current working directory
@@ -557,21 +558,21 @@ class TestMain(TestCase):
                 _, kwargs = MockCoder.call_args
                 print("kwargs:", kwargs)  # Add this line for debugging
                 self.assertIn("main_model", kwargs, "main_model key not found in kwargs")
-                self.assertEqual(kwargs["main_model"].name, "gpt-4-32k")
+                self.assertEqual(kwargs["main_model"].name, "openai/gpt-4-32k")
                 self.assertEqual(kwargs["map_tokens"], 4096)
 
                 # Test loading from git root
                 cwd_config.unlink()
                 main(["--yes", "--exit"], input=DummyInput(), output=DummyOutput())
                 _, kwargs = MockCoder.call_args
-                self.assertEqual(kwargs["main_model"].name, "gpt-4")
+                self.assertEqual(kwargs["main_model"].name, "openai/gpt-4")
                 self.assertEqual(kwargs["map_tokens"], 2048)
 
                 # Test loading from home directory
                 git_config.unlink()
                 main(["--yes", "--exit"], input=DummyInput(), output=DummyOutput())
                 _, kwargs = MockCoder.call_args
-                self.assertEqual(kwargs["main_model"].name, "gpt-3.5-turbo")
+                self.assertEqual(kwargs["main_model"].name, "openai/gpt-3.5-turbo")
                 self.assertEqual(kwargs["map_tokens"], 1024)
 
     def test_map_tokens_option(self):
@@ -579,7 +580,7 @@ class TestMain(TestCase):
             with patch("aider.coders.base_coder.RepoMap") as MockRepoMap:
                 MockRepoMap.return_value.max_map_tokens = 0
                 main(
-                    ["--model", "gpt-4", "--map-tokens", "0", "--exit", "--yes"],
+                    ["--model", "openai/gpt-4", "--map-tokens", "0", "--exit", "--yes"],
                     input=DummyInput(),
                     output=DummyOutput(),
                 )
@@ -590,7 +591,7 @@ class TestMain(TestCase):
             with patch("aider.coders.base_coder.RepoMap") as MockRepoMap:
                 MockRepoMap.return_value.max_map_tokens = 1000
                 main(
-                    ["--model", "gpt-4", "--map-tokens", "1000", "--exit", "--yes"],
+                    ["--model", "openai/gpt-4", "--map-tokens", "1000", "--exit", "--yes"],
                     input=DummyInput(),
                     output=DummyOutput(),
                 )
@@ -643,13 +644,13 @@ class TestMain(TestCase):
             metadata_file = Path(".aider.model.metadata.json")
 
             # must be a fully qualified model name: provider/...
-            metadata_content = {"deepseek/deepseek-chat": {"max_input_tokens": 1234}}
+            metadata_content = {"openai/custom-local-model": {"max_input_tokens": 1234}}
             metadata_file.write_text(json.dumps(metadata_content))
 
             coder = main(
                 [
                     "--model",
-                    "deepseek/deepseek-chat",
+                    "openai/custom-local-model",
                     "--model-metadata-file",
                     str(metadata_file),
                     "--exit",
@@ -669,11 +670,12 @@ class TestMain(TestCase):
                 mock_repo_map.max_map_tokens = 1000  # Set a specific value
                 MockRepoMap.return_value = mock_repo_map
 
-                main(
-                    ["--sonnet", "--cache-prompts", "--exit", "--yes"],
-                    input=DummyInput(),
-                    output=DummyOutput(),
-                )
+                with patch("aider.main.validate_offline_model", return_value=True):
+                    main(
+                        ["--sonnet", "--cache-prompts", "--exit", "--yes"],
+                        input=DummyInput(),
+                        output=DummyOutput(),
+                    )
 
                 MockRepoMap.assert_called_once()
                 call_args, call_kwargs = MockRepoMap.call_args
@@ -683,19 +685,20 @@ class TestMain(TestCase):
 
     def test_sonnet_and_cache_prompts_options(self):
         with GitTemporaryDirectory():
-            coder = main(
-                ["--sonnet", "--cache-prompts", "--exit", "--yes"],
-                input=DummyInput(),
-                output=DummyOutput(),
-                return_coder=True,
-            )
+            with patch("aider.main.validate_offline_model", return_value=True):
+                coder = main(
+                    ["--sonnet", "--cache-prompts", "--exit", "--yes"],
+                    input=DummyInput(),
+                    output=DummyOutput(),
+                    return_coder=True,
+                )
 
             self.assertTrue(coder.add_cache_headers)
 
     def test_4o_and_cache_options(self):
         with GitTemporaryDirectory():
             coder = main(
-                ["--4o", "--cache-prompts", "--exit", "--yes"],
+                ["--model", "openai/gpt-4o", "--cache-prompts", "--exit", "--yes"],
                 input=DummyInput(),
                 output=DummyOutput(),
                 return_coder=True,
@@ -800,18 +803,19 @@ class TestMain(TestCase):
                 patch("aider.io.InputOutput.tool_warning") as mock_warning,
                 patch("aider.models.Model.set_thinking_tokens") as mock_set_thinking,
             ):
-                main(
-                    [
-                        "--model",
-                        "anthropic/claude-3-7-sonnet-20250219",
-                        "--thinking-tokens",
-                        "1000",
-                        "--yes",
-                        "--exit",
-                    ],
-                    input=DummyInput(),
-                    output=DummyOutput(),
-                )
+                with patch("aider.main.validate_offline_model", return_value=True):
+                    main(
+                        [
+                            "--model",
+                            "anthropic/claude-3-7-sonnet-20250219",
+                            "--thinking-tokens",
+                            "1000",
+                            "--yes",
+                            "--exit",
+                        ],
+                        input=DummyInput(),
+                        output=DummyOutput(),
+                    )
                 # No warning should be shown as this model accepts thinking_tokens
                 for call in mock_warning.call_args_list:
                     self.assertNotIn("thinking_tokens", call[0][0])
@@ -826,7 +830,7 @@ class TestMain(TestCase):
                 main(
                     [
                         "--model",
-                        "gpt-4o",
+                        "openai/gpt-4o",
                         "--thinking-tokens",
                         "1000",
                         "--check-model-accepts-settings",
@@ -851,7 +855,7 @@ class TestMain(TestCase):
                 patch("aider.models.Model.set_reasoning_effort") as mock_set_reasoning,
             ):
                 main(
-                    ["--model", "o1", "--reasoning-effort", "3", "--yes", "--exit"],
+                    ["--model", "openai/o1", "--reasoning-effort", "3", "--yes", "--exit"],
                     input=DummyInput(),
                     output=DummyOutput(),
                 )
@@ -867,7 +871,14 @@ class TestMain(TestCase):
                 patch("aider.models.Model.set_reasoning_effort") as mock_set_reasoning,
             ):
                 main(
-                    ["--model", "gpt-3.5-turbo", "--reasoning-effort", "3", "--yes", "--exit"],
+                    [
+                        "--model",
+                        "openai/gpt-3.5-turbo",
+                        "--reasoning-effort",
+                        "3",
+                        "--yes",
+                        "--exit",
+                    ],
                     input=DummyInput(),
                     output=DummyOutput(),
                 )
@@ -1084,11 +1095,13 @@ class TestMain(TestCase):
 
             # Test OpenAI-compatible local server API key
             os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENAI_API_BASE"] = "http://127.0.0.1:1234/v1"
             coder = main(
                 ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
             )
             self.assertIn("local-model", coder.main_model.name.lower())
             del os.environ["OPENAI_API_KEY"]
+            del os.environ["OPENAI_API_BASE"]
 
             # Test no API keys - should fail since no model could be selected
             result = main(["--exit", "--yes"], input=DummyInput(), output=DummyOutput())
@@ -1099,13 +1112,34 @@ class TestMain(TestCase):
         with GitTemporaryDirectory():
             # Test that earlier API keys take precedence (Ollama before OpenAI)
             os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENAI_API_BASE"] = "http://127.0.0.1:1234/v1"
             os.environ["OLLAMA_API_KEY"] = "test-key"
             coder = main(
                 ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
             )
             self.assertIn("ollama", coder.main_model.name.lower())
             del os.environ["OPENAI_API_KEY"]
+            del os.environ["OPENAI_API_BASE"]
             del os.environ["OLLAMA_API_KEY"]
+
+    def test_openai_provider_requires_local_api_base(self):
+        with GitTemporaryDirectory():
+            os.environ["OPENAI_API_BASE"] = "https://api.openai.com/v1"
+            result = main(
+                ["--model", "openai/local-model", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+            self.assertEqual(result, 1)
+
+    def test_rejects_non_local_model_provider(self):
+        with GitTemporaryDirectory():
+            result = main(
+                ["--model", "anthropic/claude-3-5-sonnet-20241022", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+            self.assertEqual(result, 1)
 
     def test_chat_language_spanish(self):
         with GitTemporaryDirectory():
@@ -1151,12 +1185,13 @@ class TestMain(TestCase):
         )
 
     def test_thinking_tokens_option(self):
-        coder = main(
-            ["--model", "sonnet", "--thinking-tokens", "1000", "--yes", "--exit"],
-            input=DummyInput(),
-            output=DummyOutput(),
-            return_coder=True,
-        )
+        with patch("aider.main.validate_offline_model", return_value=True):
+            coder = main(
+                ["--model", "sonnet", "--thinking-tokens", "1000", "--yes", "--exit"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
         self.assertEqual(
             coder.main_model.extra_params.get("thinking", {}).get("budget_tokens"), 1000
         )
@@ -1243,7 +1278,7 @@ class TestMain(TestCase):
                 main(
                     [
                         "--model",
-                        "gpt-4o",
+                        "openai/gpt-4o",
                         "--thinking-tokens",
                         "1000",
                         "--check-model-accepts-settings",
@@ -1296,7 +1331,7 @@ class TestMain(TestCase):
                 main(
                     [
                         "--model",
-                        "gpt-3.5-turbo",
+                        "openai/gpt-3.5-turbo",
                         "--reasoning-effort",
                         "3",
                         "--no-check-model-accepts-settings",
@@ -1312,7 +1347,10 @@ class TestMain(TestCase):
     def test_model_accepts_settings_attribute(self):
         with GitTemporaryDirectory():
             # Test with a model where we override the accepts_settings attribute
-            with patch("aider.models.Model") as MockModel:
+            with (
+                patch("aider.models.Model") as MockModel,
+                patch("aider.main.validate_offline_model", return_value=True),
+            ):
                 # Setup mock model instance to simulate accepts_settings attribute
                 mock_instance = MockModel.return_value
                 mock_instance.name = "test-model"
@@ -1329,7 +1367,7 @@ class TestMain(TestCase):
                 main(
                     [
                         "--model",
-                        "test-model",
+                        "openai/test-model",
                         "--reasoning-effort",
                         "3",
                         "--thinking-tokens",

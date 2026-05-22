@@ -5,6 +5,8 @@ from aider.models import (
     ANTHROPIC_BETA_HEADER,
     Model,
     ModelInfoManager,
+    is_allowed_offline_model,
+    is_safe_openai_api_base,
     register_models,
     sanity_check_model,
     sanity_check_models,
@@ -156,6 +158,19 @@ class TestModels(unittest.TestCase):
         model = Model("github/o1-preview")
         self.assertEqual(model.name, "github/o1-preview")
         self.assertEqual(model.use_temperature, False)
+
+    def test_is_safe_openai_api_base(self):
+        self.assertTrue(is_safe_openai_api_base("http://127.0.0.1:1234/v1"))
+        self.assertTrue(is_safe_openai_api_base("http://llm-gateway:8000/v1"))
+        self.assertTrue(is_safe_openai_api_base("https://10.0.0.5/v1"))
+        self.assertFalse(is_safe_openai_api_base("https://api.openai.com/v1"))
+        self.assertFalse(is_safe_openai_api_base(""))
+
+    def test_is_allowed_offline_model(self):
+        self.assertTrue(is_allowed_offline_model("ollama/llama3"))
+        self.assertTrue(is_allowed_offline_model("openai/local-model"))
+        self.assertFalse(is_allowed_offline_model("anthropic/claude-3-5-sonnet-20241022"))
+        self.assertFalse(is_allowed_offline_model("gpt-4o"))
 
     def test_parse_token_value(self):
         # Create a model instance to test the parse_token_value method
@@ -423,8 +438,11 @@ class TestModels(unittest.TestCase):
                 pass
 
     @patch("aider.models.litellm.completion")
+    @patch.object(Model, "_check_ollama_health")
     @patch.object(Model, "token_count")
-    def test_ollama_num_ctx_set_when_missing(self, mock_token_count, mock_completion):
+    def test_ollama_num_ctx_set_when_missing(
+        self, mock_token_count, mock_check_health, mock_completion
+    ):
         mock_token_count.return_value = 1000
 
         model = Model("ollama/llama3")
@@ -440,11 +458,12 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             num_ctx=expected_ctx,
-            timeout=600,
+            timeout=120,
         )
 
     @patch("aider.models.litellm.completion")
-    def test_ollama_uses_existing_num_ctx(self, mock_completion):
+    @patch.object(Model, "_check_ollama_health")
+    def test_ollama_uses_existing_num_ctx(self, mock_check_health, mock_completion):
         model = Model("ollama/llama3")
         model.extra_params = {"num_ctx": 4096}
 
@@ -458,7 +477,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             num_ctx=4096,
-            timeout=600,
+            timeout=120,
         )
 
     @patch("aider.models.litellm.completion")
@@ -474,7 +493,7 @@ class TestModels(unittest.TestCase):
             messages=messages,
             stream=False,
             temperature=0,
-            timeout=600,
+            timeout=120,
         )
         self.assertNotIn("num_ctx", mock_completion.call_args.kwargs)
 
@@ -504,7 +523,7 @@ class TestModels(unittest.TestCase):
             messages=messages,
             stream=False,
             temperature=0,
-            timeout=600,  # Default timeout
+            timeout=120,  # Default timeout
         )
 
     @patch("aider.models.litellm.completion")
@@ -533,7 +552,7 @@ class TestModels(unittest.TestCase):
             messages=messages,
             stream=False,
             temperature=0,
-            timeout=600,
+            timeout=120,
         )
 
         # Test use_temperature=False doesn't send temperature
@@ -552,8 +571,14 @@ class TestModels(unittest.TestCase):
             messages=messages,
             stream=False,
             temperature=0.7,
-            timeout=600,
+            timeout=120,
         )
+
+    def test_github_copilot_disabled_offline(self):
+        model = Model("openai/local-model")
+
+        with self.assertRaisesRegex(ConnectionError, "disabled in offline mode"):
+            model.github_copilot_token_to_open_ai_key({})
 
     def test_gpt_5_5_model_settings(self):
         base_models = [

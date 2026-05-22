@@ -40,6 +40,41 @@ from aider.watch import FileWatcher
 from .dump import dump  # noqa: F401
 
 
+def validate_openai_api_base(io):
+    api_base = os.environ.get("OPENAI_API_BASE")
+    if models.is_safe_openai_api_base(api_base):
+        return True
+
+    io.tool_error(
+        "Offline mode only allows OpenAI-compatible endpoints on localhost, private IPs, or"
+        " internal hostnames."
+    )
+    io.tool_output(
+        "Set OPENAI_API_BASE (or --openai-api-base) to your local or intranet server, for example"
+        " http://127.0.0.1:1234/v1"
+    )
+    return False
+
+
+def validate_offline_model(io, model_name, arg_name="--model"):
+    resolved_model = models.MODEL_ALIASES.get(model_name, model_name)
+    if not models.is_allowed_offline_model(resolved_model):
+        io.tool_error(
+            f"Offline mode only allows local or intranet models. {arg_name}={model_name!r} "
+            "is not an allowed provider."
+        )
+        io.tool_output(
+            "Use explicit local providers such as ollama/<model> or openai/<model> pointed at a"
+            " local or intranet OpenAI-compatible server."
+        )
+        return False
+
+    if resolved_model.startswith(("openai/", "lm_studio/", "vllm/", "llama_cpp/")):
+        return validate_openai_api_base(io)
+
+    return True
+
+
 def check_config_files_for_yes(config_files):
     found = False
     for config_file in config_files:
@@ -779,6 +814,16 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         # If it failed here, we exit.
         return 1
     args.model = selected_model_name  # Update args with the selected model
+
+    if not validate_offline_model(io, args.model, "--model"):
+        analytics.event("exit", reason="Rejected non-local main model")
+        return 1
+    if args.weak_model and not validate_offline_model(io, args.weak_model, "--weak-model"):
+        analytics.event("exit", reason="Rejected non-local weak model")
+        return 1
+    if args.editor_model and not validate_offline_model(io, args.editor_model, "--editor-model"):
+        analytics.event("exit", reason="Rejected non-local editor model")
+        return 1
 
     # Check if an OpenRouter model was selected/specified but the key is missing
     if args.model.startswith("openrouter/") and not os.environ.get("OPENROUTER_API_KEY"):

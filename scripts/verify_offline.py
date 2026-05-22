@@ -29,6 +29,7 @@ PARTIAL_CHECKS = {
     },
     "aider/models.py": {
         "ModelInfoManager._update_cache": "self.content = self.content or {}",
+        "Model.github_copilot_token_to_open_ai_key": "disabled in offline mode",
     },
     "aider/onboarding.py": {
         "check_openrouter_tier": "return True",
@@ -37,6 +38,7 @@ PARTIAL_CHECKS = {
     },
     "aider/main.py": {
         "check_streamlit_install": "return False",
+        "validate_offline_model": "Offline mode only allows local or intranet models.",
     },
 }
 

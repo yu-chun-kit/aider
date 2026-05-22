@@ -9,10 +9,9 @@ import time
 import webbrowser
 from urllib.parse import parse_qs, urlparse
 
-import requests
-
 from aider import urls
 from aider.io import InputOutput
+from aider.models import is_safe_openai_api_base
 
 
 def check_openrouter_tier(api_key):
@@ -35,6 +34,10 @@ def try_to_select_default_model():
         ("OPENAI_API_KEY", "openai/local-model"),
     ]
     for env_key, model_name in local_model_envs:
+        if env_key == "OPENAI_API_KEY":
+            if os.environ.get(env_key) and is_safe_openai_api_base(os.environ.get("OPENAI_API_BASE")):
+                return model_name
+            continue
         if os.environ.get(env_key):
             return model_name
     return None

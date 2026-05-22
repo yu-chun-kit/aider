@@ -72,6 +72,15 @@ class TestOnboarding(unittest.TestCase):
 
     # OFFLINE FORK: OpenAI API key maps to local-model
     @patch.dict(os.environ, {"OPENAI_API_KEY": "oa_key"}, clear=True)
+    def test_try_select_default_model_openai_without_local_base(self):
+        """Test OpenAI-compatible model selection requires a local or intranet API base."""
+        self.assertIsNone(try_to_select_default_model())
+
+    @patch.dict(
+        os.environ,
+        {"OPENAI_API_KEY": "oa_key", "OPENAI_API_BASE": "http://127.0.0.1:1234/v1"},
+        clear=True,
+    )
     def test_try_select_default_model_openai(self):
         """Test OpenAI-compatible local server model selection."""
         self.assertEqual(try_to_select_default_model(), "openai/local-model")
@@ -96,7 +105,13 @@ class TestOnboarding(unittest.TestCase):
 
     # OFFLINE FORK: Ollama takes priority over OpenAI
     @patch.dict(
-        os.environ, {"OPENAI_API_KEY": "oa_key", "OLLAMA_API_KEY": "ol_key"}, clear=True
+        os.environ,
+        {
+            "OPENAI_API_KEY": "oa_key",
+            "OPENAI_API_BASE": "http://127.0.0.1:1234/v1",
+            "OLLAMA_API_KEY": "ol_key",
+        },
+        clear=True,
     )
     def test_try_select_default_model_priority_ollama(self):
         """Test Ollama key takes priority over OpenAI in offline mode."""
